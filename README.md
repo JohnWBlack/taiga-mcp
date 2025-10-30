@@ -20,6 +20,13 @@
 - `/sse/sse/messages/` — POST target for SSE message submission (returned in SSE `endpoint` event).
 - `/mcp/` — Streamable HTTP transport; clients **must** send `Accept: application/json, text/event-stream` to satisfy protocol negotiation.
 
+## MCP Tools
+- `echo(message)` — diagnostic helper that returns the provided message.
+- `taiga.projects.list()` — lists projects visible to the service account.
+- `taiga.epics.list(project_id)` — lists epics for a project, including id/ref/subject/status metadata.
+- `taiga.stories.create(project_id, subject, description?, status?, tags?, assigned_to?)` — creates a Taiga user story; `status` accepts either an id or status name/slug.
+- `taiga.epics.add_user_story(epic_id, user_story_id)` — links a user story to an epic.
+
 ## Local Development Workflow
 - **Prerequisites**
   - Python 3.11 (project uses a `.chat-venv` virtual environment by default).
