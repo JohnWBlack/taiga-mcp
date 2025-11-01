@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Mapping
 
 import httpx
+from httpx._types import QueryParamTypes
 
 __all__ = [
     "TaigaAPIError",
@@ -33,26 +34,54 @@ class TaigaClient:
         # Normalise base URL to avoid eventual double slashes.
         base_url = base_url.rstrip("/")
 
-        username = _require_env("TAIGA_USERNAME")
-        password = _require_env("TAIGA_PASSWORD")
+        self._username = _require_env("TAIGA_USERNAME")
+        self._password = _require_env("TAIGA_PASSWORD")
 
         self._client = httpx.AsyncClient(
             base_url=base_url,
-            auth=(username, password),
             timeout=30.0,
+            headers={"Accept": "application/json"},
         )
+        self._auth_token: str | None = None
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def authenticate(self) -> None:
+        if self._auth_token:
+            return
+        payload = {
+            "type": "normal",
+            "username": self._username,
+            "password": self._password,
+        }
+        response = await self._client.post("auth", json=payload)
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:  # pragma: no cover - error details for humans
+            detail = exc.response.text
+            raise TaigaAPIError(
+                f"Taiga authentication failed with status {exc.response.status_code}: {detail}"
+            ) from exc
+
+        try:
+            data = response.json()
+            token = data["auth_token"]
+        except (ValueError, KeyError) as exc:  # pragma: no cover - error details for humans
+            raise TaigaAPIError("Taiga authentication response did not contain auth_token") from exc
+
+        self._auth_token = token
+        self._client.headers["Authorization"] = f"Bearer {token}"
 
     async def _request(
         self,
         method: str,
         path: str,
         *,
-        params: Mapping[str, Any] | None = None,
+        params: QueryParamTypes | None = None,
         json: Mapping[str, Any] | None = None,
     ) -> Any:
+        path = path.lstrip("/")
         response = await self._client.request(method, path, params=params, json=json)
         try:
             response.raise_for_status()
@@ -65,9 +94,22 @@ class TaigaClient:
             return response.json()
         return None
 
-    async def list_projects(self) -> list[dict[str, Any]]:
-        data = await self._request("GET", "/projects")
+    async def list_projects(
+        self,
+        *,
+        params: QueryParamTypes | None = None,
+    ) -> list[dict[str, Any]]:
+        data = await self._request("GET", "/projects", params=params)
         return list(data)
+
+    async def get_project(self, project_id: int) -> dict[str, Any]:
+        data = await self._request("GET", f"/projects/{project_id}")
+        return dict(data)
+
+    async def get_project_by_slug(self, slug: str) -> dict[str, Any]:
+        params = {"slug": slug}
+        data = await self._request("GET", "/projects/by_slug", params=params)
+        return dict(data)
 
     async def list_epics(self, project_id: int) -> list[dict[str, Any]]:
         params = {"project": project_id}
@@ -83,6 +125,17 @@ class TaigaClient:
         data = await self._request("POST", "/userstories", json=payload)
         return dict(data)
 
+    async def get_user_story(self, story_id: int) -> dict[str, Any]:
+        data = await self._request("GET", f"/userstories/{story_id}")
+        return dict(data)
+
+    async def update_user_story(self, story_id: int, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("PATCH", f"/userstories/{story_id}", json=payload)
+        return dict(data)
+
+    async def delete_user_story(self, story_id: int) -> None:
+        await self._request("DELETE", f"/userstories/{story_id}")
+
     async def link_epic_user_story(self, epic_id: int, user_story_id: int) -> dict[str, Any] | None:
         payload = {"user_story": user_story_id}
         data = await self._request(
@@ -92,11 +145,57 @@ class TaigaClient:
         )
         return dict(data) if data else None
 
+    async def create_epic(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("POST", "/epics", json=payload)
+        return dict(data)
+
+    async def get_epic(self, epic_id: int) -> dict[str, Any]:
+        data = await self._request("GET", f"/epics/{epic_id}")
+        return dict(data)
+
+    async def update_epic(self, epic_id: int, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("PATCH", f"/epics/{epic_id}", json=payload)
+        return dict(data)
+
+    async def delete_epic(self, epic_id: int) -> None:
+        await self._request("DELETE", f"/epics/{epic_id}")
+
+    async def create_task(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("POST", "/tasks", json=payload)
+        return dict(data)
+
+    async def get_task(self, task_id: int) -> dict[str, Any]:
+        data = await self._request("GET", f"/tasks/{task_id}")
+        return dict(data)
+
+    async def update_task(self, task_id: int, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("PATCH", f"/tasks/{task_id}", json=payload)
+        return dict(data)
+
+    async def delete_task(self, task_id: int) -> None:
+        await self._request("DELETE", f"/tasks/{task_id}")
+
+    async def create_issue(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("POST", "/issues", json=payload)
+        return dict(data)
+
+    async def get_issue(self, issue_id: int) -> dict[str, Any]:
+        data = await self._request("GET", f"/issues/{issue_id}")
+        return dict(data)
+
+    async def update_issue(self, issue_id: int, payload: Mapping[str, Any]) -> dict[str, Any]:
+        data = await self._request("PATCH", f"/issues/{issue_id}", json=payload)
+        return dict(data)
+
+    async def delete_issue(self, issue_id: int) -> None:
+        await self._request("DELETE", f"/issues/{issue_id}")
+
 
 @asynccontextmanager
 async def get_taiga_client() -> AsyncIterator[TaigaClient]:
     client = TaigaClient()
     try:
+        await client.authenticate()
         yield client
     finally:
         await client.close()
