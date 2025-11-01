@@ -71,9 +71,9 @@
 
 ## Container Build & Publish
 - Build tagged images:
-  - `docker build -t ghcr.io/johnwblack/taiga-mcp:v0.0.23 -t ghcr.io/johnwblack/taiga-mcp:latest .`
+  - `docker build -t ghcr.io/johnwblack/taiga-mcp:v0.0.24 -t ghcr.io/johnwblack/taiga-mcp:latest .`
 - Push to GHCR:
-  - `docker push ghcr.io/johnwblack/taiga-mcp:v0.0.23`
+  - `docker push ghcr.io/johnwblack/taiga-mcp:v0.0.24`
   - `docker push ghcr.io/johnwblack/taiga-mcp:latest`
 
 ## Azure Container Apps Deployment
@@ -81,7 +81,7 @@
 - Container app: `taiga-mcp`
 - Managed environment: `cae-offset3`
 - Deployment command (after successful image push):
-  - `az containerapp update -g rg-offset3 -n taiga-mcp --image ghcr.io/johnwblack/taiga-mcp:v0.0.23`
+  - `az containerapp update -g rg-offset3 -n taiga-mcp --image ghcr.io/johnwblack/taiga-mcp:v0.0.24`
 - CLI prerequisites on Windows (prevents permission errors):
   - ` $env:AZURE_EXTENSION_DIR = Join-Path $HOME '.az-extensions'`
   - ` $env:AZURE_CONFIG_DIR = Join-Path $HOME '.az-cli'`
