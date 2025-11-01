@@ -43,6 +43,7 @@ class TaigaClient:
             headers={"Accept": "application/json"},
         )
         self._auth_token: str | None = None
+        self._user_id: int | None = None
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -72,6 +73,12 @@ class TaigaClient:
 
         self._auth_token = token
         self._client.headers["Authorization"] = f"Bearer {token}"
+        user_id = data.get("id") if isinstance(data, dict) else None
+        if user_id is not None:
+            try:
+                self._user_id = int(user_id)
+            except (TypeError, ValueError):  # pragma: no cover - defensive default
+                self._user_id = None
 
     async def _request(
         self,
@@ -101,6 +108,21 @@ class TaigaClient:
     ) -> list[dict[str, Any]]:
         data = await self._request("GET", "/projects", params=params)
         return list(data)
+
+    async def get_current_user_id(self) -> int:
+        if self._user_id is not None:
+            return self._user_id
+
+        data = await self._request("GET", "/users/me")
+        if not isinstance(data, dict):
+            raise TaigaAPIError("Taiga API did not return user details")
+        try:
+            user_id = int(data["id"])
+        except (KeyError, TypeError, ValueError) as exc:  # pragma: no cover - defensive default
+            raise TaigaAPIError("Taiga API did not provide the authenticated user id") from exc
+
+        self._user_id = user_id
+        return user_id
 
     async def get_project(self, project_id: int) -> dict[str, Any]:
         data = await self._request("GET", f"/projects/{project_id}")
@@ -137,7 +159,10 @@ class TaigaClient:
         await self._request("DELETE", f"/userstories/{story_id}")
 
     async def link_epic_user_story(self, epic_id: int, user_story_id: int) -> dict[str, Any] | None:
-        payload = {"user_story": user_story_id}
+        payload = {
+            "epic": epic_id,
+            "user_story": user_story_id,
+        }
         data = await self._request(
             "POST",
             f"/epics/{epic_id}/related_userstories",

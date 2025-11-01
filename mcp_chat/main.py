@@ -17,7 +17,7 @@ from pydantic import BaseModel
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = Jinja2Templates(directory=os.path.join(APP_DIR, "templates"))
 
-MCP_URL = os.environ.get("MCP_URL", "https://taiga-mcp.politeground-c43f6662.eastus.azurecontainerapps.io/mcp")
+MCP_URL = os.environ.get("MCP_URL", "http://127.0.0.1:8000/mcp")
 MCP_HEADERS: dict[str, str] | None = None
 
 logger = logging.getLogger(__name__)

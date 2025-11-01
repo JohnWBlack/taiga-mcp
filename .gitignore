@@ -1,0 +1,22 @@
+# Python build artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.chat-venv/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+pytest-debug.log
+
+# Local environment configuration
+.env
+.env.*
+
+# Editor settings
+.vscode/
+.idea/

@@ -33,6 +33,7 @@ class DummyTaigaClient:
         self.issues_created: list[dict] = []
         self.issue_updates: list[tuple[int, dict]] = []
         self.deleted_issue_ids: list[int] = []
+        self.user_id = 123
 
     async def list_projects(self, params=None) -> list[dict]:
         error = self.raise_map.get("list_projects")
@@ -40,6 +41,9 @@ class DummyTaigaClient:
             raise error
         self.list_projects_params = params
         return self.projects
+
+    async def get_current_user_id(self) -> int:
+        return self.user_id
 
     async def get_project(self, project_id: int) -> dict:
         error = self.raise_map.get("get_project")
@@ -332,6 +336,20 @@ def test_list_projects_honours_search_filter(proxy_client):
     assert payload["projects"] == [
         {"id": 2, "name": "Beta", "slug": "beta", "is_private": True}
     ]
+    assert fake_client.list_projects_params == {"member": str(fake_client.user_id)}
+
+
+def test_list_projects_defaults_to_membership_filter(proxy_client):
+    client, fake_client = proxy_client
+    fake_client.projects = [{"id": 1, "name": "Alpha", "slug": "alpha", "is_private": True}]
+
+    response = client.get(
+        "/actions/list_projects",
+        headers={"X-Api-Key": "secret"},
+    )
+
+    assert response.status_code == 200
+    assert fake_client.list_projects_params == {"member": str(fake_client.user_id)}
 
 
 def test_list_projects_forwards_query_params(proxy_client):
@@ -344,7 +362,7 @@ def test_list_projects_forwards_query_params(proxy_client):
     )
 
     assert response.status_code == 200
-    assert fake_client.list_projects_params == [("member", "12")]
+    assert fake_client.list_projects_params == {"member": "12"}
 
 
 def test_create_story_validates_required_fields(proxy_client):

@@ -116,16 +116,20 @@ async def _list_projects_action(request: Request) -> JSONResponse:
 
     raw_params = list(request.query_params.multi_items())
     search: str | None = None
-    filtered_params: list[tuple[str, str]] = []
+    filtered_params: dict[str, str] = {}
     for key, value in raw_params:
         if key == "search":
             search = value
             continue
-        filtered_params.append((key, value))
+        filtered_params[key] = value
 
-    params = filtered_params or None
     try:
-        projects = await _call_taiga(lambda client: client.list_projects(params=params))
+        async with get_taiga_client() as client:
+            params: dict[str, str] = dict(filtered_params)
+            if "member" not in params:
+                member_id = await client.get_current_user_id()
+                params["member"] = str(member_id)
+            projects = await client.list_projects(params=params)
     except TaigaAPIError as exc:
         return _error_response(str(exc), 400)
     except Exception:  # pragma: no cover - safety net
@@ -1122,13 +1126,22 @@ async def _delete_issue_action(request: Request) -> JSONResponse:
     name="taiga.projects.list",
     annotations=ToolAnnotations(openWorldHint=True, readOnlyHint=True, idempotentHint=True),
 )
-async def taiga_projects_list() -> list[dict[str, Any]]:
-    """Return the available Taiga projects visible to the service account."""
+async def taiga_projects_list(search: str | None = None) -> list[dict[str, Any]]:
+    """Return the Taiga projects the service account can access."""
 
     async with get_taiga_client() as client:
-        projects = await client.list_projects()
+        member_id = await client.get_current_user_id()
+        params: dict[str, Any] = {"member": str(member_id)}
+        projects = await client.list_projects(params=params)
     keep = ("id", "name", "slug", "description", "is_private")
-    return [_slice(project, keep) for project in projects]
+    filtered: list[dict[str, Any]] = []
+    for project in projects:
+        if search:
+            name = project.get("name", "")
+            if search.lower() not in name.lower():
+                continue
+        filtered.append(_slice(project, keep))
+    return filtered
 
 
 @mcp.tool(
